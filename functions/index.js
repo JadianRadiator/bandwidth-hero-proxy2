@@ -173,7 +173,7 @@ exports.handler = async (e) => {
         ...CORS_HEADERS,
         ...CACHE_HEADERS,
         "content-type": useWebp ? "image/webp" : "image/jpeg",
-        ...compressedHeaders,
+        ...safeCompressedHeaders,
       },
     };
 
