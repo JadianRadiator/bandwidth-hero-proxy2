@@ -1,35 +1,34 @@
-const fetch = require("node-fetch");
 const sharp = require("sharp");
 
-exports.handler = async (e) => {
-  const params = e.queryStringParameters || {};
-  const targetUrl = params.url;
+module.exports = async (req) => {
+  const reqUrl = new URL(req.url);
+  const targetUrl = reqUrl.searchParams.get("url");
 
   if (!targetUrl) {
-    return { statusCode: 200, body: "bandwidth-hero-proxy" };
+    return new Response("bandwidth-hero-proxy", { status: 200 });
   }
 
-  const useJpeg  = params.jpeg === "1";
-  const grayscale = params.bw === "1";
-  const quality  = Math.min(Math.max(parseInt(params.l || params.quality || "50", 10), 10), 100);
-  const maxWidth = parseInt(params.max_width || "0", 10);
+  const useJpeg   = reqUrl.searchParams.get("jpeg") === "1";
+  const grayscale = reqUrl.searchParams.get("bw") === "1";
+  const quality   = Math.min(Math.max(parseInt(reqUrl.searchParams.get("l") || reqUrl.searchParams.get("quality") || "50", 10), 10), 100);
+  const maxWidth  = parseInt(reqUrl.searchParams.get("max_width") || "0", 10);
 
   try {
     const parsed = new URL(targetUrl);
     const res = await fetch(targetUrl, {
       headers: {
-        "user-agent": e.headers["user-agent"] || "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36",
-        "referer": e.headers["referer"] || `${parsed.origin}/`,
-        ...(e.headers["cookie"] ? { cookie: e.headers["cookie"] } : {}),
+        "user-agent": req.headers.get("user-agent") || "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36",
+        "referer": req.headers.get("referer") || `${parsed.origin}/`,
+        ...(req.headers.get("cookie") ? { cookie: req.headers.get("cookie") } : {}),
       },
       redirect: "follow",
     });
 
     if (!res.ok) {
-      return { statusCode: res.status, body: "" };
+      return new Response("", { status: res.status });
     }
 
-    const inputBuffer = await res.buffer();
+    const inputBuffer = Buffer.from(await res.arrayBuffer());
 
     let pipeline = sharp(inputBuffer, { failOn: "none" });
     if (grayscale) pipeline = pipeline.grayscale();
@@ -39,16 +38,14 @@ exports.handler = async (e) => {
       ? await pipeline.jpeg({ quality, mozjpeg: false }).toBuffer()
       : await pipeline.webp({ quality, effort: 2 }).toBuffer();
 
-    return {
-      statusCode: 200,
-      isBase64Encoded: true,
+    return new Response(outputBuffer, {
+      status: 200,
       headers: {
         "content-type": useJpeg ? "image/jpeg" : "image/webp",
         "cache-control": "public, max-age=604800",
       },
-      body: outputBuffer.toString("base64"),
-    };
+    });
   } catch (err) {
-    return { statusCode: 500, body: err.message || "Error" };
+    return new Response(err.message || "Error", { status: 500 });
   }
 };
