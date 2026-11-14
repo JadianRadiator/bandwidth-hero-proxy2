@@ -109,22 +109,17 @@ exports.handler = async (e) => {
         r,
         {
           headers: {
-            ...pick(e.headers, ["cookie", "dnt", "referer"]),
             "user-agent":
-              e.headers["user-agent"] ||
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "accept":
-              e.headers["accept"] ||
-              "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-            "accept-language": e.headers["accept-language"] || "en-US,en;q=0.9",
-            "accept-encoding": "identity",
-            "x-forwarded-for": e.headers["x-forwarded-for"] || e.ip,
-            via: "1.1 bandwidth-hero",
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "referer": e.headers["referer"] || `${parsedUrl.origin}/`,
+            "accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+            "accept-language": "en-US,en;q=0.9",
           },
           redirect: "follow",
         },
         8000
       );
+
 
       if (!response.ok) {
         return { statusCode: response.status || 302, headers: CORS_HEADERS, body: "" };
