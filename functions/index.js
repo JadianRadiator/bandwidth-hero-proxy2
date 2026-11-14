@@ -6,7 +6,6 @@
  * This repo:              himshim/bandwidth-hero-proxy2 (MIT)
  */
 
-const pick           = require("../util/pick");
 const fetch          = require("node-fetch");
 const shouldCompress = require("../util/shouldCompress");
 const compress       = require("../util/compress");
@@ -19,10 +18,6 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "*",
 };
 
-// Cache-Control: Netlify CDN caches each compressed response at the edge.
-// The cache key is the full proxy URL (includes url + quality + bw + jpeg + max_width)
-// so every unique param combination gets its own cache entry.
-// CDN cache hits never invoke this function at all.
 const CACHE_HEADERS = {
   "Cache-Control": "public, s-maxage=604800, max-age=3600, stale-while-revalidate=86400",
 };
@@ -61,14 +56,6 @@ exports.handler = async (e) => {
   }
 
   let { url: r } = e.queryStringParameters;
-
-  // jpeg:      "1" = use JPEG (client has no WebP), "0" or absent = use WebP
-  // bw:        "1" = grayscale, "0" or absent = colour
-  // quality/l: compression quality 1–100.
-  //            Our extension sends "quality=", original ayastreb sends "l=".
-  //            Both accepted so this proxy works with either extension.
-  // max_width: downscale images wider than this before compressing, 0 = no limit.
-  //            Our extension sends this; original extension does not — safe to ignore.
   const { jpeg: s, bw: o, quality: q, l, max_width: mw } = e.queryStringParameters;
 
   if (!r) {
@@ -87,47 +74,50 @@ exports.handler = async (e) => {
     return { statusCode: 403, headers: CORS_HEADERS, body: "Forbidden" };
   }
 
-  // useWebp: true unless client explicitly sent jpeg=1.
-  // Original proxy used `!s` which treated both "0" and "1" as truthy strings
-  // and always returned WebP. Fixed with strict string comparison.
-  const useWebp = s !== "1";
-
-  // grayscale: only true when bw is explicitly "1".
-  // Original proxy used loose `0 != o` coercion — same result, made explicit here.
+  const useWebp   = s !== "1";
   const grayscale = o === "1";
-
-  // Accept both param names for compatibility with original and our extension.
-  const quality  = parseInt(q || l, 10) || DEFAULT_QUALITY;
-
-  const maxWidth = parseInt(mw, 10) || 0;
+  const quality   = parseInt(q || l, 10) || DEFAULT_QUALITY;
+  const maxWidth  = parseInt(mw, 10) || 0;
 
   try {
-    let upstreamHeaders = {}, body, contentType;
+    let body, contentType;
+
+    // Pass through all headers from TachiyomiSY, stripping only Netlify routing headers
+    const forwardHeaders = { ...e.headers };
+    delete forwardHeaders["host"];
+    delete forwardHeaders["connection"];
+    delete forwardHeaders["content-length"];
+    delete forwardHeaders["x-forwarded-for"];
+    delete forwardHeaders["x-forwarded-proto"];
+    delete forwardHeaders["x-forwarded-port"];
+    delete forwardHeaders["x-nf-client-connection-ip"];
+    delete forwardHeaders["x-nf-request-id"];
+    delete forwardHeaders["client-ip"];
+
+    if (!forwardHeaders["user-agent"]) {
+      forwardHeaders["user-agent"] =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+    }
+    if (!forwardHeaders["referer"]) {
+      forwardHeaders["referer"] = `${parsedUrl.origin}/`;
+    }
 
     try {
       const response = await fetchWithTimeout(
         r,
         {
-          headers: {
-            "user-agent":
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-            "referer": e.headers["referer"] || `${parsedUrl.origin}/`,
-            "accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-            "accept-language": "en-US,en;q=0.9",
-          },
+          headers: forwardHeaders,
           redirect: "follow",
         },
         8000
       );
 
-
       if (!response.ok) {
         return { statusCode: response.status || 302, headers: CORS_HEADERS, body: "" };
       }
 
-      upstreamHeaders = response.headers;
-      body            = await response.buffer();
-      contentType     = response.headers.get("content-type") || "";
+      body        = await response.buffer();
+      contentType = response.headers.get("content-type") || "";
 
     } catch (fetchErr) {
       if (fetchErr.message === "FETCH_TIMEOUT") {
@@ -147,7 +137,7 @@ exports.handler = async (e) => {
 
     const originalSize = body.length;
 
-        if (!shouldCompress(contentType, originalSize, useWebp)) {
+    if (!shouldCompress(contentType, originalSize, useWebp)) {
       console.log("Bypassing compression. Size:", originalSize);
       return {
         statusCode:      200,
@@ -185,7 +175,6 @@ exports.handler = async (e) => {
         ...compressedHeaders,
       },
     };
-
 
   } catch (err) {
     console.error(err);
