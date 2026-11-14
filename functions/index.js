@@ -152,10 +152,7 @@ exports.handler = async (e) => {
 
     const originalSize = body.length;
 
-    // useWebp doubles as the isTransparent flag: WebP supports transparency so
-    // the lower 1024-byte minimum threshold applies in WebP mode, meaning almost
-    // all images get compressed. In JPEG mode the higher PNG/GIF threshold applies.
-    if (!shouldCompress(contentType, originalSize, useWebp)) {
+        if (!shouldCompress(contentType, originalSize, useWebp)) {
       console.log("Bypassing compression. Size:", originalSize);
       return {
         statusCode:      200,
@@ -164,8 +161,7 @@ exports.handler = async (e) => {
         headers: {
           ...CORS_HEADERS,
           ...CACHE_HEADERS,
-          "content-encoding": "identity",
-          ...upstreamHeaders,
+          "content-type": contentType || "image/jpeg",
         },
       };
     }
@@ -190,11 +186,11 @@ exports.handler = async (e) => {
       headers: {
         ...CORS_HEADERS,
         ...CACHE_HEADERS,
-        "content-encoding": "identity",
-        ...upstreamHeaders,
+        "content-type": useWebp ? "image/webp" : "image/jpeg",
         ...compressedHeaders,
       },
     };
+
 
   } catch (err) {
     console.error(err);
