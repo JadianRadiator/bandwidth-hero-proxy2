@@ -82,25 +82,25 @@ exports.handler = async (e) => {
   try {
     let body, contentType;
 
-    // Pass through all headers from TachiyomiSY, stripping only Netlify routing headers
-    const forwardHeaders = { ...e.headers };
-    delete forwardHeaders["host"];
-    delete forwardHeaders["connection"];
-    delete forwardHeaders["content-length"];
-    delete forwardHeaders["x-forwarded-for"];
-    delete forwardHeaders["x-forwarded-proto"];
-    delete forwardHeaders["x-forwarded-port"];
-    delete forwardHeaders["x-nf-client-connection-ip"];
-    delete forwardHeaders["x-nf-request-id"];
-    delete forwardHeaders["client-ip"];
+    const forwardHeaders = {
+      "user-agent":
+        "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+      "accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+      "accept-language": "en-US,en;q=0.9",
+      "sec-ch-ua": '"Chromium";v="131", "Not_A Brand";v="24"',
+      "sec-ch-ua-mobile": "?1",
+      "sec-ch-ua-platform": '"Android"',
+      "sec-fetch-dest": "image",
+      "sec-fetch-mode": "no-cors",
+      "sec-fetch-site": "cross-site",
+      "referer": e.headers["referer"] || `${parsedUrl.origin}/`,
+    };
 
-    if (!forwardHeaders["user-agent"]) {
-      forwardHeaders["user-agent"] =
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+    if (e.headers["cookie"]) {
+      forwardHeaders["cookie"] = e.headers["cookie"];
     }
-    if (!forwardHeaders["referer"]) {
-      forwardHeaders["referer"] = `${parsedUrl.origin}/`;
-    }
+
+    console.log("Fetching:", r, "Incoming Referer:", e.headers["referer"] || "NONE");
 
     try {
       const response = await fetchWithTimeout(
@@ -113,6 +113,7 @@ exports.handler = async (e) => {
       );
 
       if (!response.ok) {
+        console.log("Upstream failed with status:", response.status, "for URL:", r);
         return { statusCode: response.status || 302, headers: CORS_HEADERS, body: "" };
       }
 
