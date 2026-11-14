@@ -74,7 +74,7 @@ exports.handler = async (e) => {
     return { statusCode: 403, headers: CORS_HEADERS, body: "Forbidden" };
   }
 
-  const useWebp   = s !== "1";
+  const useWebp   = false;
   const grayscale = o === "1";
   const quality   = parseInt(q || l, 10) || DEFAULT_QUALITY;
   const maxWidth  = parseInt(mw, 10) || 0;
